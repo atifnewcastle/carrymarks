@@ -60,57 +60,37 @@
 
                 // Check if the form has been submitted
                 if ($_SERVER["REQUEST_METHOD"] == "POST" && $conn) {
-                    // Sanitize and retrieve form data
-                    // $lecturerId = $conn->real_escape_string($_POST['lecturer_id']);
-                    // $firstName = $conn->real_escape_string($_POST['first_name']);
-                    // $lastName = $conn->real_escape_string($_POST['last_name']);
-                    $email = $conn->real_escape_string($_POST['email']);
-                    // $password = $_POST['password']; // Password will be hashed
-                    // $department = $conn->real_escape_string($_POST['department']);
+                    // Sanitize and validate email input
+                    $email = trim($_POST['email'] ?? '');
 
-                    // Input validation
-                    if (empty($lecturerId) || empty($firstName) || empty($lastName) || empty($email) || empty($password)) {
-                        echo '<div class="alert alert-danger" role="alert">Please fill in all required fields.</div>';
+                    if (empty($email)) {
+                        echo '<div class="alert alert-danger" role="alert">Please enter your email.</div>';
                     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                         echo '<div class="alert alert-danger" role="alert">Invalid email format.</div>';
                     } else {
-                        // Hash the password for security
-                        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                        // Check if email exists in Lecturer table
+                        $sql = "SELECT LecturerID FROM Lecturer WHERE Email = ?";
+                        $stmt = $conn->prepare($sql);
+                        if ($stmt) {
+                            $stmt->bind_param("s", $email);
+                            $stmt->execute();
+                            $stmt->store_result();
 
-                        // Check if LecturerID or Email already exists
-                        $checkSql = "SELECT LecturerID FROM Lecturer WHERE LecturerID = ? OR Email = ?";
-                        $stmtCheck = $conn->prepare($checkSql);
-                        $stmtCheck->bind_param("ss", $lecturerId, $email);
-                        $stmtCheck->execute();
-                        $stmtCheck->store_result();
-
-                        if ($stmtCheck->num_rows > 0) {
-                            echo '<div class="alert alert-warning" role="alert">LecturerID or Email already exists. Please use a different one.</div>';
-                        } else {
-                            // Prepare an SQL INSERT statement
-                            // Note: The `Lecturer` table from the previous prompt does not have a 'Password' column.
-                            // For a sign-up page, you would typically add a 'PasswordHash' column to store hashed passwords.
-                            // I am adding it here for demonstration.
-                            $sql = "INSERT INTO Lecturer (LecturerID, FirstName, LastName, Email, Department, PasswordHash) VALUES (?, ?, ?, ?, ?, ?)";
-
-                            // Prepare and bind parameters to prevent SQL injection
-                            $stmt = $conn->prepare($sql);
-                            if ($stmt) {
-                                $stmt->bind_param("ssssss", $lecturerId, $firstName, $lastName, $email, $department, $hashedPassword);
-
-                                // Execute the statement
-                                if ($stmt->execute()) {
-                                    echo '<div class="alert alert-success" role="alert">Lecturer "' . htmlspecialchars($firstName) . ' ' . htmlspecialchars($lastName) . '" signed up successfully!</div>';
-                                } else {
-                                    echo '<div class="alert alert-danger" role="alert">Error: ' . $stmt->error . '</div>';
-                                }
-                                // Close the statement
-                                $stmt->close();
+                            if ($stmt->num_rows > 0) {
+                                // Email found, redirect to dashboard
+                                session_start(); // Start the session
+                                // Serialize the email and store it in session 
+                                $_SESSION['email'] = $email; // Store email in session
+                                $_SESSION['user_id'] = $stmt->fetch()[0]; // Assuming LecturerID
+                                header("Location: dashboard.php");
+                                exit();
                             } else {
-                                echo '<div class="alert alert-danger" role="alert">Error preparing statement: ' . $conn->error . '</div>';
+                                echo '<div class="alert alert-danger" role="alert">Email not found. Please check your email or sign up.</div>';
                             }
+                            $stmt->close();
+                        } else {
+                            echo '<div class="alert alert-danger" role="alert">Database error: ' . $conn->error . '</div>';
                         }
-                        $stmtCheck->close();
                     }
                 }
             } catch (mysqli_sql_exception $e) {
@@ -125,34 +105,11 @@
 
             <!-- Lecturer Sign Up Form -->
             <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="POST">
-                <div class="mb-3">
-                    <label for="lecturer_id" class="form-label">Lecturer ID:</label>
-                    <input type="text" id="lecturer_id" name="lecturer_id" required class="form-control rounded">
-                </div>
 
-                <div class="mb-3">
-                    <label for="first_name" class="form-label">First Name:</label>
-                    <input type="text" id="first_name" name="first_name" required class="form-control rounded">
-                </div>
-
-                <div class="mb-3">
-                    <label for="last_name" class="form-label">Last Name:</label>
-                    <input type="text" id="last_name" name="last_name" required class="form-control rounded">
-                </div>
 
                 <div class="mb-3">
                     <label for="email" class="form-label">Email:</label>
                     <input type="email" id="email" name="email" required class="form-control rounded">
-                </div>
-
-                <div class="mb-3">
-                    <label for="password" class="form-label">Password:</label>
-                    <input type="password" id="password" name="password" required class="form-control rounded">
-                </div>
-
-                <div class="mb-4">
-                    <label for="department" class="form-label">Department (Optional):</label>
-                    <input type="text" id="department" name="department" class="form-control rounded">
                 </div>
 
                 <button type="submit" class="btn btn-custom w-100 rounded">Sign Up</button>
